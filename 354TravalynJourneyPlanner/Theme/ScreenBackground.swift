@@ -5,15 +5,23 @@ struct ScreenBackground: ViewModifier {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
-                Color("AppBackground")
-                    .overlay {
-                        Image("BgSkyline")
-                            .resizable()
-                            .scaledToFill()
-                            .opacity(0.33)
-                    }
-                    .clipped()
-                    .ignoresSafeArea()
+                ZStack {
+                    Color("AppBackground")
+                    Image("BgSkyline")
+                        .resizable()
+                        .scaledToFill()
+                        .opacity(0.28)
+                    LinearGradient(
+                        colors: [
+                            Palette.background.opacity(0.15),
+                            Palette.background.opacity(0.72)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+                .clipped()
+                .ignoresSafeArea()
             }
     }
 }
@@ -21,5 +29,10 @@ struct ScreenBackground: ViewModifier {
 extension View {
     func deskBackdrop() -> some View {
         modifier(ScreenBackground())
+    }
+
+    func clearScrollBackground() -> some View {
+        scrollContentBackground(.hidden)
+            .background(Color.clear)
     }
 }

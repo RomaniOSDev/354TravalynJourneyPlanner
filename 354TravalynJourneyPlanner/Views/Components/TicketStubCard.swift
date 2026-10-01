@@ -6,90 +6,81 @@ struct TicketStubCard: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            stubRail
-            perforation
-            passBody
+            gateMark
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("DEPARTURE RAIL")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(Palette.accent)
+                        .tracking(1.1)
+                    Spacer()
+                    statusChip
+                }
+                Text(destination.city)
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .foregroundStyle(Palette.primary)
+                Text(destination.country)
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundStyle(Palette.accent)
+                HStack {
+                    Text(TripFormat.dateRange(start: destination.startDate, end: destination.endDate))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(Palette.accent)
+                    Spacer()
+                    Text(statusLine)
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Palette.primary)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Palette.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Palette.primary.opacity(0.55), lineWidth: 1.2)
+        .background(
+            LinearGradient(
+                colors: [Palette.surface, Palette.background.opacity(0.65)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
         )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Palette.primary.opacity(0.4), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.18), radius: 6, y: 3)
     }
 
-    private var stubRail: some View {
-        VStack(spacing: 9) {
+    private var gateMark: some View {
+        VStack(spacing: 8) {
             Text(TripFormat.cityCode(destination.city))
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .foregroundStyle(Palette.background)
                 .rotationEffect(.degrees(-90))
-                .frame(width: 44)
-            ForEach(0..<5, id: \.self) { _ in
-                Circle()
-                    .fill(Palette.background)
-                    .frame(width: 9, height: 9)
-            }
+                .frame(width: 42)
+            Image(systemName: destination.isKitSealed ? "lock.fill" : "lock.open")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Palette.background)
         }
-        .padding(.vertical, 12)
-        .frame(width: 36)
+        .padding(.vertical, 14)
+        .frame(width: 40)
         .frame(maxHeight: .infinity)
         .background(Palette.primary)
     }
 
-    private var perforation: some View {
-        VStack(spacing: 3) {
-            ForEach(0..<14, id: \.self) { _ in
-                Capsule()
-                    .fill(Palette.background.opacity(0.75))
-                    .frame(width: 2, height: 5)
-            }
-        }
-        .padding(.vertical, 8)
-        .frame(width: 12)
-        .background(Palette.surface)
+    private var statusChip: some View {
+        Text(destination.visited ? "DONE" : "OPEN")
+            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            .foregroundStyle(destination.visited ? Palette.background : Palette.primary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(destination.visited ? Palette.accent : Palette.background.opacity(0.45))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
-    private var passBody: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("BOARDING PASS")
-                    .font(.system(size: 10, weight: .bold, design: .serif))
-                    .foregroundStyle(Palette.accent)
-                    .tracking(1.4)
-                Spacer()
-                if destination.visited {
-                    Image(systemName: "checkmark.seal.fill")
-                        .foregroundStyle(Palette.primary)
-                } else {
-                    Text("PLANNED")
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Palette.accent)
-                }
-            }
-            Text(destination.city)
-                .font(.system(.title3, design: .serif).weight(.semibold))
-                .foregroundStyle(Palette.primary)
-            Text(destination.country)
-                .font(.system(.subheadline, design: .serif))
-                .foregroundStyle(Palette.accent)
-            HStack {
-                Text(TripFormat.dateRange(start: destination.startDate, end: destination.endDate))
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(Palette.accent)
-                Spacer()
-                Text(packingLabel)
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Palette.primary)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var packingLabel: String {
+    private var statusLine: String {
         let progress = store.packingProgress(for: destination.id)
-        return TripFormat.packedCount(done: progress.done, total: progress.total).uppercased()
+        let kit = destination.isKitSealed ? "SEALED" : "UNSEALED"
+        return "\(kit) · \(TripFormat.packedCount(done: progress.done, total: progress.total).uppercased())"
     }
 }

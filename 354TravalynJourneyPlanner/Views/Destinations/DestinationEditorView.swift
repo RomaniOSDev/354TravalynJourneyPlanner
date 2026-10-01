@@ -21,7 +21,7 @@ struct DestinationEditorView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    BannerStrip(imageName: "BannerMap", caption: existingId == nil ? "NEW TICKET" : "REISSUE TICKET")
+                    BannerStrip(imageName: "BannerMap", caption: existingId == nil ? "NEW GATE" : "EDIT GATE")
                     DeskSurface {
                         VStack(alignment: .leading, spacing: 14) {
                             labeledField("City", placeholder: "Lisbon", text: $city)

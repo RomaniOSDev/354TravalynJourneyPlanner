@@ -14,6 +14,10 @@ struct Destination: Identifiable, Codable, Equatable, Hashable {
     var planMorning: String
     var planAfternoon: String
     var planEvening: String
+    var kitSealedAt: Date?
+    var sealedEssentialIds: [UUID]
+    var lastBriefDayKey: String?
+    var briefResidue: String
 
     init(
         id: UUID,
@@ -28,7 +32,11 @@ struct Destination: Identifiable, Codable, Equatable, Hashable {
         budgetSpent: Double = 0,
         planMorning: String = "",
         planAfternoon: String = "",
-        planEvening: String = ""
+        planEvening: String = "",
+        kitSealedAt: Date? = nil,
+        sealedEssentialIds: [UUID] = [],
+        lastBriefDayKey: String? = nil,
+        briefResidue: String = ""
     ) {
         self.id = id
         self.city = city
@@ -43,6 +51,14 @@ struct Destination: Identifiable, Codable, Equatable, Hashable {
         self.planMorning = planMorning
         self.planAfternoon = planAfternoon
         self.planEvening = planEvening
+        self.kitSealedAt = kitSealedAt
+        self.sealedEssentialIds = sealedEssentialIds
+        self.lastBriefDayKey = lastBriefDayKey
+        self.briefResidue = briefResidue
+    }
+
+    var isKitSealed: Bool {
+        kitSealedAt != nil
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -50,6 +66,7 @@ struct Destination: Identifiable, Codable, Equatable, Hashable {
         case plannedDate
         case budgetCurrency, budgetPlanned, budgetSpent
         case planMorning, planAfternoon, planEvening
+        case kitSealedAt, sealedEssentialIds, lastBriefDayKey, briefResidue
     }
 
     init(from decoder: Decoder) throws {
@@ -71,6 +88,10 @@ struct Destination: Identifiable, Codable, Equatable, Hashable {
         planMorning = try container.decodeIfPresent(String.self, forKey: .planMorning) ?? ""
         planAfternoon = try container.decodeIfPresent(String.self, forKey: .planAfternoon) ?? ""
         planEvening = try container.decodeIfPresent(String.self, forKey: .planEvening) ?? ""
+        kitSealedAt = try container.decodeIfPresent(Date.self, forKey: .kitSealedAt)
+        sealedEssentialIds = try container.decodeIfPresent([UUID].self, forKey: .sealedEssentialIds) ?? []
+        lastBriefDayKey = try container.decodeIfPresent(String.self, forKey: .lastBriefDayKey)
+        briefResidue = try container.decodeIfPresent(String.self, forKey: .briefResidue) ?? ""
     }
 
     func encode(to encoder: Encoder) throws {
@@ -88,6 +109,10 @@ struct Destination: Identifiable, Codable, Equatable, Hashable {
         try container.encode(planMorning, forKey: .planMorning)
         try container.encode(planAfternoon, forKey: .planAfternoon)
         try container.encode(planEvening, forKey: .planEvening)
+        try container.encodeIfPresent(kitSealedAt, forKey: .kitSealedAt)
+        try container.encode(sealedEssentialIds, forKey: .sealedEssentialIds)
+        try container.encodeIfPresent(lastBriefDayKey, forKey: .lastBriefDayKey)
+        try container.encode(briefResidue, forKey: .briefResidue)
     }
 }
 
@@ -103,9 +128,9 @@ enum DestinationFilter: String, Codable, CaseIterable, Identifiable {
         case .all:
             return "All"
         case .planned:
-            return "Planned"
+            return "Open"
         case .visited:
-            return "Visited"
+            return "Done"
         }
     }
 }
@@ -143,4 +168,10 @@ enum TripCurrency: String, CaseIterable, Identifiable {
     case uah = "UAH"
 
     var id: String { rawValue }
+}
+
+struct BriefLoop: Identifiable, Equatable {
+    var id: String
+    var title: String
+    var detail: String
 }

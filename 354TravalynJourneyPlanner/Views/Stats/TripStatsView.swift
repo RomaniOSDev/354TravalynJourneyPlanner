@@ -7,11 +7,12 @@ struct TripStatsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                BannerStrip(imageName: "BannerMap", caption: "TRIP LEDGER")
+                BannerStrip(imageName: "BannerMap", caption: "PULSE RADAR")
                 if store.destinations.isEmpty {
                     emptyDesk
                 } else {
                     summaryRow
+                    frictionInsightCard
                     statusChartCard
                     packingChartCard
                     monthlyChartCard
@@ -20,8 +21,9 @@ struct TripStatsView: View {
             }
             .padding(.bottom, 28)
         }
+        .clearScrollBackground()
         .deskBackdrop()
-        .navigationTitle("Statistics")
+        .navigationTitle("Pulse")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Palette.background, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
@@ -31,10 +33,10 @@ struct TripStatsView: View {
     private var emptyDesk: some View {
         DeskSurface {
             VStack(alignment: .leading, spacing: 8) {
-                Text("No stamps to chart")
-                    .font(.system(.headline, design: .serif))
+                Text("Pulse is quiet")
+                    .font(.system(.headline, design: .rounded))
                     .foregroundStyle(Palette.primary)
-                Text("Add a city ticket and the ledger will plot planned versus visited trips, packing, and transit modes.")
+                Text("Add a trip, seal a kit, and tag transit friction on Lines — Pulse charts the pattern.")
                     .font(.system(.subheadline, design: .default))
                     .foregroundStyle(Palette.accent)
             }
@@ -44,9 +46,9 @@ struct TripStatsView: View {
 
     private var summaryRow: some View {
         HStack(spacing: 10) {
-            summaryChip(title: "Cities", value: "\(store.destinations.count)")
-            summaryChip(title: "Visited", value: "\(visitedCount)")
-            summaryChip(title: "Packed", value: packedLabel)
+            summaryChip(title: "Trips", value: "\(store.destinations.count)")
+            summaryChip(title: "Sealed", value: "\(sealedCount)")
+            summaryChip(title: "Friction", value: "\(store.frictionEvents.count)")
         }
         .padding(.horizontal, 16)
     }
@@ -58,16 +60,45 @@ struct TripStatsView: View {
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(Palette.accent)
                 Text(value)
-                    .font(.system(.title3, design: .serif).weight(.semibold))
+                    .font(.system(.title3, design: .rounded).weight(.bold))
                     .foregroundStyle(Palette.primary)
             }
         }
     }
 
+    private var frictionInsightCard: some View {
+        DeskSurface {
+            VStack(alignment: .leading, spacing: 12) {
+                chartTitle("Friction radar")
+                if let dominant = store.dominantFriction() {
+                    Text("Peak tag: \(dominant.title)")
+                        .font(.system(.headline, design: .rounded))
+                        .foregroundStyle(Palette.primary)
+                    Text(dominant.prepTip)
+                        .font(.system(.subheadline, design: .default))
+                        .foregroundStyle(Palette.accent)
+                    Chart(store.frictionCounts().map { FrictionRow(kind: $0.kind, count: $0.count) }) { row in
+                        BarMark(
+                            x: .value("Count", row.count),
+                            y: .value("Kind", row.kind.title)
+                        )
+                        .foregroundStyle(Palette.primary)
+                    }
+                    .frame(height: max(120, CGFloat(store.frictionCounts().count) * 32))
+                } else {
+                    Text("No friction tags yet. On Lines, log Crowded / Delayed / Confusing / Cash only / Language.")
+                        .font(.system(.subheadline, design: .default))
+                        .foregroundStyle(Palette.accent)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
     private var statusChartCard: some View {
         DeskSurface {
             VStack(alignment: .leading, spacing: 12) {
-                chartTitle("Ticket status")
+                chartTitle("Trip status")
                 Chart(statusRows) { row in
                     BarMark(
                         x: .value("Status", row.title),
@@ -98,9 +129,9 @@ struct TripStatsView: View {
     private var packingChartCard: some View {
         DeskSurface {
             VStack(alignment: .leading, spacing: 12) {
-                chartTitle("Suitcase progress")
+                chartTitle("Kit progress")
                 if packingRows.isEmpty {
-                    Text("No packing items yet. Add tags to a suitcase to plot completion.")
+                    Text("No kit items yet. Add gate essentials and seal before departure.")
                         .font(.system(.subheadline, design: .default))
                         .foregroundStyle(Palette.accent)
                 } else {
@@ -171,7 +202,7 @@ struct TripStatsView: View {
     private var transitChartCard: some View {
         DeskSurface {
             VStack(alignment: .leading, spacing: 12) {
-                chartTitle("Transit modes")
+                chartTitle("Line modes")
                 Chart(transitRows) { row in
                     BarMark(
                         x: .value("Mode", row.title),
@@ -205,23 +236,18 @@ struct TripStatsView: View {
             .foregroundStyle(Palette.accent)
     }
 
+    private var sealedCount: Int {
+        store.destinations.filter(\.isKitSealed).count
+    }
+
     private var visitedCount: Int {
         store.destinations.filter(\.visited).count
     }
 
-    private var packedLabel: String {
-        let total = store.items.count
-        if total == 0 {
-            return "—"
-        }
-        let done = store.items.filter(\.isComplete).count
-        return "\(Int((Double(done) / Double(total) * 100).rounded()))%"
-    }
-
     private var statusRows: [NamedCount] {
         [
-            NamedCount(title: "Planned", count: store.destinations.count - visitedCount, color: Palette.accent),
-            NamedCount(title: "Visited", count: visitedCount, color: Palette.primary)
+            NamedCount(title: "Open", count: store.destinations.count - visitedCount, color: Palette.accent),
+            NamedCount(title: "Done", count: visitedCount, color: Palette.primary)
         ]
     }
 
@@ -300,4 +326,10 @@ private struct PackingRow: Identifiable {
     let id: UUID
     let city: String
     let percent: Double
+}
+
+private struct FrictionRow: Identifiable {
+    var id: String { kind.rawValue }
+    let kind: FrictionKind
+    let count: Int
 }

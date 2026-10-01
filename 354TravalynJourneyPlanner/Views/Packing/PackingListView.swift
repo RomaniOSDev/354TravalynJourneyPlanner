@@ -16,14 +16,14 @@ struct PackingListView: View {
             if let destination = store.destination(id: destinationId) {
                 packingDesk(for: destination)
             } else {
-                Text("This suitcase is no longer linked to a city.")
-                    .font(.system(.headline, design: .serif))
+                Text("This kit is no longer linked to a trip.")
+                    .font(.system(.headline, design: .rounded))
                     .foregroundStyle(Palette.primary)
                     .padding()
             }
         }
         .deskBackdrop()
-        .navigationTitle("Packing")
+        .navigationTitle("Kit")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Palette.background, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
@@ -58,16 +58,18 @@ struct PackingListView: View {
         let cats = store.categories(for: destinationId)
         return ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                BannerStrip(imageName: "BannerPack", caption: "SUITCASE CHECK")
+                BannerStrip(imageName: "BannerPack", caption: "KIT SEAL")
+                kitSealBoard(destination)
+                    .padding(.horizontal, 16)
                 DeskSurface {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(destination.city.uppercased())
                             .font(.system(size: 11, weight: .bold, design: .monospaced))
                             .foregroundStyle(Palette.accent)
-                        Text("Packing sorter")
-                            .font(.system(.title3, design: .serif).weight(.semibold))
+                        Text("Gate essentials kit")
+                            .font(.system(.title3, design: .rounded).weight(.bold))
                             .foregroundStyle(Palette.primary)
-                        Text("Categories stay tied to this ticket. Check items as they go in the case.")
+                        Text("Star up to three must-not-forget items, then seal the kit. Sealed essentials stay checked until you unseal.")
                             .font(.system(.subheadline, design: .default))
                             .foregroundStyle(Palette.accent)
                     }
@@ -75,25 +77,82 @@ struct PackingListView: View {
                 .padding(.horizontal, 16)
                 if cats.isEmpty {
                     DeskSurface {
-                        Text("No categories yet. Add Documents, Tech, or a custom group.")
-                            .font(.system(.subheadline, design: .serif))
+                        Text("No categories yet. Add Documents, Carry, Wear, or a custom group.")
+                            .font(.system(.subheadline, design: .rounded))
                             .foregroundStyle(Palette.accent)
                     }
                     .padding(.horizontal, 16)
                 }
                 ForEach(Array(cats.enumerated()), id: \.element.id) { index, category in
-                    categoryBlock(category, index: index, total: cats.count)
+                    categoryBlock(category, index: index, total: cats.count, destination: destination)
                 }
-                addCategoryField
-                    .padding(.horizontal, 16)
-                templateDesk
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 28)
+                if destination.isKitSealed == false {
+                    addCategoryField
+                        .padding(.horizontal, 16)
+                    templateDesk
+                        .padding(.horizontal, 16)
+                }
+                Spacer(minLength: 28)
+            }
+        }
+        .clearScrollBackground()
+    }
+
+    private func kitSealBoard(_ destination: Destination) -> some View {
+        let essentialTitles = destination.sealedEssentialIds.compactMap { id in
+            store.items.first(where: { item in
+                item.id == id
+            })?.title
+        }
+        return DeskSurface {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(destination.isKitSealed ? "KIT SEALED" : "KIT OPEN")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Palette.accent)
+                if essentialTitles.isEmpty {
+                    Text("Mark 1–3 gate essentials with the star, then seal.")
+                        .font(.system(.subheadline, design: .rounded))
+                        .foregroundStyle(Palette.primary)
+                } else {
+                    ForEach(essentialTitles, id: \.self) { title in
+                        HStack(spacing: 8) {
+                            Image(systemName: "star.fill")
+                                .foregroundStyle(Palette.primary)
+                            Text(title)
+                                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                                .foregroundStyle(Palette.primary)
+                        }
+                    }
+                }
+                if destination.isKitSealed {
+                    Button("Unseal kit") {
+                        store.unsealKit(destinationId: destinationId)
+                        Haptics.tap()
+                    }
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(Palette.background)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Palette.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                } else {
+                    Button("Seal kit") {
+                        store.sealKit(destinationId: destinationId)
+                        Haptics.confirm()
+                    }
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(Palette.background)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(destination.sealedEssentialIds.isEmpty ? Palette.accent.opacity(0.35) : Palette.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .disabled(destination.sealedEssentialIds.isEmpty)
+                }
             }
         }
     }
 
-    private func categoryBlock(_ category: PackCategory, index: Int, total: Int) -> some View {
+    private func categoryBlock(_ category: PackCategory, index: Int, total: Int, destination: Destination) -> some View {
         let categoryItems = store.items(for: category.id)
         let done = categoryItems.filter(\.isComplete).count
         return DeskSurface {
@@ -101,35 +160,45 @@ struct PackingListView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(category.title)
-                            .font(.system(.headline, design: .serif))
+                            .font(.system(.headline, design: .rounded))
                             .foregroundStyle(Palette.primary)
                         Text(TripFormat.packedCount(done: done, total: categoryItems.count))
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(Palette.accent)
                     }
                     Spacer()
-                    Button("Edit") {
-                        editingCategory = category
+                    if destination.isKitSealed == false {
+                        Button("Edit") {
+                            editingCategory = category
+                        }
+                        .font(.system(.caption, design: .rounded).weight(.semibold))
+                        .foregroundStyle(Palette.accent)
                     }
-                    .font(.system(.caption, design: .serif).weight(.semibold))
-                    .foregroundStyle(Palette.accent)
                 }
-                HStack(spacing: 8) {
-                    moveChip("Move Up", enabled: index > 0) {
-                        store.moveCategory(category.id, up: true)
-                    }
-                    moveChip("Move Down", enabled: index < total - 1) {
-                        store.moveCategory(category.id, up: false)
+                if destination.isKitSealed == false {
+                    HStack(spacing: 8) {
+                        moveChip("Move Up", enabled: index > 0) {
+                            store.moveCategory(category.id, up: true)
+                        }
+                        moveChip("Move Down", enabled: index < total - 1) {
+                            store.moveCategory(category.id, up: false)
+                        }
                     }
                 }
                 ForEach(Array(categoryItems.enumerated()), id: \.element.id) { itemIndex, item in
                     SuitcaseCheckRow(
                         title: item.title,
                         isComplete: item.isComplete,
+                        isEssential: store.isEssential(item.id, destinationId: destinationId),
+                        kitSealed: destination.isKitSealed,
                         canMoveUp: itemIndex > 0,
                         canMoveDown: itemIndex < categoryItems.count - 1,
                         onToggle: {
                             store.toggleItem(item.id)
+                        },
+                        onToggleEssential: {
+                            store.toggleEssential(itemId: item.id, destinationId: destinationId)
+                            Haptics.tap()
                         },
                         onMoveUp: {
                             store.moveItem(item.id, up: true)
@@ -142,18 +211,20 @@ struct PackingListView: View {
                         }
                     )
                 }
-                Button {
-                    addingItemCategoryId = category.id
-                } label: {
-                    Label("Add item", systemImage: "plus")
-                        .font(.system(.subheadline, design: .serif).weight(.semibold))
-                        .foregroundStyle(Palette.background)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Palette.accent)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                if destination.isKitSealed == false {
+                    Button {
+                        addingItemCategoryId = category.id
+                    } label: {
+                        Label("Add item", systemImage: "plus")
+                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                            .foregroundStyle(Palette.background)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Palette.accent)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 16)
@@ -163,7 +234,7 @@ struct PackingListView: View {
         DeskSurface {
             VStack(alignment: .leading, spacing: 10) {
                 Text("New category")
-                    .font(.system(.caption, design: .serif).weight(.semibold))
+                    .font(.system(.caption, design: .rounded).weight(.semibold))
                     .foregroundStyle(Palette.accent)
                 DeskTextField(placeholder: "Category name", text: $newCategoryTitle)
                 Button("Add category") {
@@ -173,12 +244,12 @@ struct PackingListView: View {
                         newCategoryTitle = ""
                     }
                 }
-                .font(.system(.subheadline, design: .serif).weight(.semibold))
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .foregroundStyle(Palette.background)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .background(Palette.primary)
-                .clipShape(Capsule())
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
         }
     }
@@ -189,10 +260,10 @@ struct PackingListView: View {
         }
         return DeskSurface {
             VStack(alignment: .leading, spacing: 12) {
-                Text("SUITCASE TEMPLATES")
+                Text("KIT TEMPLATES")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(Palette.accent)
-                Text("Save this case, apply a template, or copy from another city. Apply and copy replace the current list; items land unchecked.")
+                Text("Save this kit, apply a template, or copy from another trip. Apply and copy replace the current list.")
                     .font(.system(.subheadline, design: .default))
                     .foregroundStyle(Palette.accent)
                 DeskTextField(placeholder: "Template name", text: $templateTitle)
@@ -201,18 +272,18 @@ struct PackingListView: View {
                     templateTitle = ""
                     Haptics.confirm()
                 }
-                .font(.system(.subheadline, design: .serif).weight(.semibold))
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .foregroundStyle(Palette.background)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .background(Palette.primary)
-                .clipShape(Capsule())
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 if store.packingTemplates.isEmpty == false {
                     ForEach(store.packingTemplates) { template in
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(template.title)
-                                    .font(.system(.subheadline, design: .serif).weight(.semibold))
+                                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
                                     .foregroundStyle(Palette.primary)
                                 Text("\(template.categories.count) groups")
                                     .font(.system(.caption, design: .monospaced))
@@ -223,42 +294,42 @@ struct PackingListView: View {
                                 store.applyTemplate(template.id, to: destinationId)
                                 Haptics.tap()
                             }
-                            .font(.system(.caption, design: .serif).weight(.semibold))
+                            .font(.system(.caption, design: .rounded).weight(.semibold))
                             .foregroundStyle(Palette.background)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
                             .background(Palette.accent)
-                            .clipShape(Capsule())
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                             Button("Delete") {
                                 store.deleteTemplate(template.id)
                             }
-                            .font(.system(.caption, design: .serif).weight(.semibold))
+                            .font(.system(.caption, design: .rounded).weight(.semibold))
                             .foregroundStyle(Palette.primary)
                         }
                     }
                 }
                 if otherCities.isEmpty == false {
-                    Picker("Copy from city", selection: $copySourceId) {
-                        Text("Copy from city").tag(Optional<UUID>.none)
+                    Picker("Copy from trip", selection: $copySourceId) {
+                        Text("Copy from trip").tag(Optional<UUID>.none)
                         ForEach(otherCities) { destination in
                             Text(destination.city).tag(Optional(destination.id))
                         }
                     }
                     .pickerStyle(.menu)
                     .tint(Palette.primary)
-                    Button("Copy packing") {
+                    Button("Copy kit") {
                         if let copySourceId {
                             store.copyPacking(from: copySourceId, to: destinationId)
                             Haptics.confirm()
                             self.copySourceId = nil
                         }
                     }
-                    .font(.system(.subheadline, design: .serif).weight(.semibold))
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .foregroundStyle(copySourceId == nil ? Palette.accent : Palette.background)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .background(copySourceId == nil ? Palette.background.opacity(0.35) : Palette.primary)
-                    .clipShape(Capsule())
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .disabled(copySourceId == nil)
                 }
             }
@@ -272,7 +343,7 @@ struct PackingListView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(Palette.background.opacity(0.4))
-            .clipShape(Capsule())
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .disabled(enabled == false)
     }
 }

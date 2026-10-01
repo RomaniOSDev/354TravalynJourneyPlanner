@@ -13,6 +13,7 @@ final class AppStore: ObservableObject {
     @Published var transitPreferences: [TransitPreference] = []
     @Published var customTransitNotes: [TransitNote] = []
     @Published var packingTemplates: [PackTemplate] = []
+    @Published var frictionEvents: [FrictionEvent] = []
     @Published var remindersEnabled = false
 
     private let defaults: UserDefaults
@@ -29,6 +30,7 @@ final class AppStore: ObservableObject {
         static let transitPreferences = "transitPreferences"
         static let customTransitNotes = "customTransitNotes"
         static let packingTemplates = "packingTemplates"
+        static let frictionEvents = "frictionEvents"
         static let remindersEnabled = "remindersEnabled"
     }
 
@@ -45,6 +47,7 @@ final class AppStore: ObservableObject {
         transitPreferences = decode([TransitPreference].self, key: Keys.transitPreferences, fallback: [])
         customTransitNotes = decode([TransitNote].self, key: Keys.customTransitNotes, fallback: [])
         packingTemplates = decode([PackTemplate].self, key: Keys.packingTemplates, fallback: [])
+        frictionEvents = decode([FrictionEvent].self, key: Keys.frictionEvents, fallback: [])
         remindersEnabled = defaults.bool(forKey: Keys.remindersEnabled)
         let seededTemplates = seedDefaultTemplateIfNeeded()
         isHydrating = false
@@ -54,6 +57,182 @@ final class AppStore: ObservableObject {
         if remindersEnabled {
             TripReminders.reschedule(destinations: destinations)
         }
+    }
+
+    func dayKey(_ date: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar.current
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    func departureBriefLoops(for destinationId: UUID) -> [BriefLoop] {
+        var loops: [BriefLoop] = []
+        guard let destination = destination(id: destinationId) else {
+            return loops
+        }
+        let openPack = categories(for: destinationId).flatMap { category in
+            items(for: category.id).filter { item in
+                item.isComplete == false
+            }
+        }
+        for item in openPack.prefix(6) {
+            loops.append(
+                BriefLoop(
+                    id: "pack-\(item.id.uuidString)",
+                    title: item.title,
+                    detail: "Open kit item"
+                )
+            )
+        }
+        if destination.planMorning.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            loops.append(BriefLoop(id: "plan-morning", title: "Morning slot empty", detail: "Day board"))
+        }
+        if destination.planAfternoon.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            loops.append(BriefLoop(id: "plan-day", title: "Day slot empty", detail: "Day board"))
+        }
+        if destination.planEvening.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            loops.append(BriefLoop(id: "plan-evening", title: "Evening slot empty", detail: "Day board"))
+        }
+        if destination.isKitSealed == false {
+            loops.append(BriefLoop(id: "kit-seal", title: "Kit not sealed", detail: "Gate essentials"))
+        }
+        if destination.briefResidue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            loops.insert(
+                BriefLoop(
+                    id: "residue",
+                    title: destination.briefResidue,
+                    detail: "Carried residue"
+                ),
+                at: 0
+            )
+        }
+        return loops
+    }
+
+    func needsDepartureBrief(for destinationId: UUID) -> Bool {
+        guard let destination = destination(id: destinationId), destination.visited == false else {
+            return false
+        }
+        if destination.lastBriefDayKey == dayKey() {
+            return false
+        }
+        return departureBriefLoops(for: destinationId).isEmpty == false
+    }
+
+    func acknowledgeBrief(destinationId: UUID, residue: String) {
+        guard let index = destinations.firstIndex(where: { item in
+            item.id == destinationId
+        }) else {
+            return
+        }
+        destinations[index].lastBriefDayKey = dayKey()
+        destinations[index].briefResidue = trimmed(residue)
+        lastEditedTripId = destinationId
+        save()
+    }
+
+    func isEssential(_ itemId: UUID, destinationId: UUID) -> Bool {
+        guard let destination = destination(id: destinationId) else {
+            return false
+        }
+        return destination.sealedEssentialIds.contains(itemId)
+    }
+
+    func toggleEssential(itemId: UUID, destinationId: UUID) {
+        guard let index = destinations.firstIndex(where: { item in
+            item.id == destinationId
+        }) else {
+            return
+        }
+        if destinations[index].isKitSealed {
+            return
+        }
+        var ids = destinations[index].sealedEssentialIds
+        if let existing = ids.firstIndex(of: itemId) {
+            ids.remove(at: existing)
+        } else {
+            guard ids.count < 3 else {
+                return
+            }
+            ids.append(itemId)
+        }
+        destinations[index].sealedEssentialIds = ids
+        lastEditedTripId = destinationId
+        save()
+    }
+
+    func sealKit(destinationId: UUID) {
+        guard let index = destinations.firstIndex(where: { item in
+            item.id == destinationId
+        }) else {
+            return
+        }
+        guard destinations[index].sealedEssentialIds.isEmpty == false else {
+            return
+        }
+        destinations[index].kitSealedAt = Date()
+        lastEditedTripId = destinationId
+        save()
+    }
+
+    func unsealKit(destinationId: UUID) {
+        guard let index = destinations.firstIndex(where: { item in
+            item.id == destinationId
+        }) else {
+            return
+        }
+        destinations[index].kitSealedAt = nil
+        lastEditedTripId = destinationId
+        save()
+    }
+
+    func frictionEvents(for destinationId: UUID) -> [FrictionEvent] {
+        frictionEvents
+            .filter { event in
+                event.destinationId == destinationId
+            }
+            .sorted { lhs, rhs in
+                lhs.createdAt > rhs.createdAt
+            }
+    }
+
+    func addFriction(destinationId: UUID, kind: FrictionKind, note: String) {
+        frictionEvents.append(
+            FrictionEvent(
+                id: UUID(),
+                destinationId: destinationId,
+                kind: kind,
+                note: trimmed(note),
+                createdAt: Date()
+            )
+        )
+        selectedCity = destinationId
+        save()
+    }
+
+    func deleteFriction(_ id: UUID) {
+        frictionEvents.removeAll { event in
+            event.id == id
+        }
+        save()
+    }
+
+    func frictionCounts() -> [(kind: FrictionKind, count: Int)] {
+        FrictionKind.allCases.compactMap { kind in
+            let count = frictionEvents.filter { event in
+                event.kind == kind
+            }.count
+            return count > 0 ? (kind, count) : nil
+        }
+        .sorted { lhs, rhs in
+            lhs.count > rhs.count
+        }
+    }
+
+    func dominantFriction() -> FrictionKind? {
+        frictionCounts().first?.kind
     }
 
     func visibleDestinations(search: String = "") -> [Destination] {
@@ -194,6 +373,9 @@ final class AppStore: ObservableObject {
         }
         customTransitNotes.removeAll { note in
             note.destinationId == id
+        }
+        frictionEvents.removeAll { event in
+            event.destinationId == id
         }
         if lastEditedTripId == id {
             lastEditedTripId = nil
@@ -408,6 +590,12 @@ final class AppStore: ObservableObject {
         }) else {
             return
         }
+        if let category = categories.first(where: { category in
+            category.id == items[index].categoryId
+        }), let destination = destination(id: category.destinationId), destination.isKitSealed,
+           destination.sealedEssentialIds.contains(id), items[index].isComplete {
+            return
+        }
         items[index].isComplete.toggle()
         if let category = categories.first(where: { category in
             category.id == items[index].categoryId
@@ -429,6 +617,13 @@ final class AppStore: ObservableObject {
         if let category = categories.first(where: { category in
             category.id == item.categoryId
         }) {
+            if let destIndex = destinations.firstIndex(where: { destination in
+                destination.id == category.destinationId
+            }) {
+                destinations[destIndex].sealedEssentialIds.removeAll { sealed in
+                    sealed == id
+                }
+            }
             lastEditedTripId = category.destinationId
         }
         save()
@@ -576,6 +771,7 @@ final class AppStore: ObservableObject {
         transitPreferences = []
         customTransitNotes = []
         packingTemplates = []
+        frictionEvents = []
         remindersEnabled = false
         defaults.set(false, forKey: "didSeedPackTemplates")
         _ = seedDefaultTemplateIfNeeded()
@@ -596,12 +792,13 @@ final class AppStore: ObservableObject {
         transitPreferences = decode([TransitPreference].self, key: Keys.transitPreferences, fallback: [])
         customTransitNotes = decode([TransitNote].self, key: Keys.customTransitNotes, fallback: [])
         packingTemplates = decode([PackTemplate].self, key: Keys.packingTemplates, fallback: [])
+        frictionEvents = decode([FrictionEvent].self, key: Keys.frictionEvents, fallback: [])
         remindersEnabled = defaults.bool(forKey: Keys.remindersEnabled)
         isHydrating = false
     }
 
     private func seedStarterCategories(for destinationId: UUID) {
-        let titles = ["Documents", "Tech", "Apparel"]
+        let titles = ["Documents", "Carry", "Wear"]
         for (index, title) in titles.enumerated() {
             let category = PackCategory(
                 id: UUID(),
@@ -644,6 +841,7 @@ final class AppStore: ObservableObject {
         encode(transitPreferences, key: Keys.transitPreferences)
         encode(customTransitNotes, key: Keys.customTransitNotes)
         encode(packingTemplates, key: Keys.packingTemplates)
+        encode(frictionEvents, key: Keys.frictionEvents)
         encode(sortPreference, key: Keys.sortPreference)
         defaults.set(remindersEnabled, forKey: Keys.remindersEnabled)
         write(uuid: lastEditedTripId, key: Keys.lastEditedTripId)
@@ -696,6 +894,12 @@ final class AppStore: ObservableObject {
             }
         }
         lastEditedTripId = destinationId
+        if let destIndex = destinations.firstIndex(where: { destination in
+            destination.id == destinationId
+        }) {
+            destinations[destIndex].kitSealedAt = nil
+            destinations[destIndex].sealedEssentialIds = []
+        }
         save()
     }
 
@@ -707,11 +911,11 @@ final class AppStore: ObservableObject {
             packingTemplates = [
                 PackTemplate(
                     id: UUID(),
-                    title: "Classic case",
+                    title: "Gate essentials",
                     categories: [
-                        PackTemplateCategory(title: "Documents", items: ["Passport", "Tickets", "Insurance"]),
-                        PackTemplateCategory(title: "Tech", items: ["Phone charger", "Adapter", "Power bank"]),
-                        PackTemplateCategory(title: "Apparel", items: ["Day outfit", "Evening layer", "Shoes"])
+                        PackTemplateCategory(title: "Documents", items: ["Passport", "Boarding QR", "Insurance"]),
+                        PackTemplateCategory(title: "Carry", items: ["Phone charger", "Adapter", "Cash float"]),
+                        PackTemplateCategory(title: "Wear", items: ["Day layer", "Walk shoes", "Weather shell"])
                     ]
                 )
             ]

@@ -23,8 +23,9 @@ struct DestinationsListView: View {
             }
             .padding(.bottom, 28)
         }
+        .clearScrollBackground()
         .deskBackdrop()
-        .navigationTitle("Destinations")
+        .navigationTitle("Board")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Palette.background, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
@@ -37,16 +38,16 @@ struct DestinationsListView: View {
                     Image(systemName: "plus")
                         .foregroundStyle(Palette.primary)
                 }
-                .accessibilityLabel("Add city")
+                .accessibilityLabel("Add trip")
             }
             ToolbarItem(placement: .navigationBarTrailing) {
                 NavigationLink {
                     TripStatsView()
                 } label: {
-                    Image(systemName: "chart.bar.fill")
+                    Image(systemName: "waveform.path.ecg")
                         .foregroundStyle(Palette.primary)
                 }
-                .accessibilityLabel("Statistics")
+                .accessibilityLabel("Pulse")
             }
             ToolbarItem(placement: .navigationBarTrailing) {
                 NavigationLink {
@@ -85,14 +86,14 @@ struct DestinationsListView: View {
                     Haptics.tap()
                 } label: {
                     Text(filter.title)
-                        .font(.system(.caption, design: .serif).weight(.semibold))
+                        .font(.system(.caption, design: .rounded).weight(.semibold))
                         .foregroundStyle(store.filterPreference == filter ? Palette.background : Palette.primary)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                         .background(store.filterPreference == filter ? Palette.primary : Palette.surface)
-                        .clipShape(Capsule())
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .overlay(
-                            Capsule()
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .stroke(Palette.accent.opacity(0.45), lineWidth: 1)
                         )
                 }
@@ -114,12 +115,12 @@ struct DestinationsListView: View {
                     Haptics.tap()
                 } label: {
                     Text(sort.title)
-                        .font(.system(.caption2, design: .serif).weight(.semibold))
+                        .font(.system(.caption2, design: .rounded).weight(.semibold))
                         .foregroundStyle(store.sortPreference == sort ? Palette.background : Palette.primary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(store.sortPreference == sort ? Palette.accent : Palette.surface)
-                        .clipShape(Capsule())
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -131,11 +132,11 @@ struct DestinationsListView: View {
     private func countdownCard(_ destination: Destination) -> some View {
         DeskSurface {
             VStack(alignment: .leading, spacing: 6) {
-                Text("NEXT STAMP")
+                Text("NEXT GATE")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(Palette.accent)
                 Text(destination.city)
-                    .font(.system(.title3, design: .serif).weight(.semibold))
+                    .font(.system(.title3, design: .rounded).weight(.bold))
                     .foregroundStyle(Palette.primary)
                 Text(TripFormat.countdown(start: destination.startDate, end: destination.endDate))
                     .font(.system(.subheadline, design: .monospaced))
@@ -143,6 +144,15 @@ struct DestinationsListView: View {
                 Text(TripFormat.dateRange(start: destination.startDate, end: destination.endDate))
                     .font(.system(.caption, design: .default))
                     .foregroundStyle(Palette.accent)
+                if store.needsDepartureBrief(for: destination.id) {
+                    Text("Departure Brief waiting")
+                        .font(.system(.caption, design: .rounded).weight(.semibold))
+                        .foregroundStyle(Palette.background)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Palette.primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -165,22 +175,22 @@ struct DestinationsListView: View {
     private var emptyDesk: some View {
         DeskSurface {
             VStack(alignment: .leading, spacing: 10) {
-                Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No tickets on the desk" : "No matching tickets")
-                    .font(.system(.headline, design: .serif))
+                Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No trips on the board" : "No matching trips")
+                    .font(.system(.headline, design: .rounded))
                     .foregroundStyle(Palette.primary)
                 Text(emptyCopy)
                     .font(.system(.subheadline, design: .default))
                     .foregroundStyle(Palette.accent)
                 if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Button("Add city") {
+                    Button("Add trip") {
                         showEditor = true
                     }
-                    .font(.system(.subheadline, design: .serif).weight(.semibold))
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .foregroundStyle(Palette.background)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     .background(Palette.primary)
-                    .clipShape(Capsule())
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
             }
         }
@@ -193,11 +203,11 @@ struct DestinationsListView: View {
         }
         switch store.filterPreference {
         case .all:
-            return "Stamp a boarding pass to start a trip, then sort the suitcase and jot metro notes."
+            return "Add a city trip, run Departure Brief, seal Kit essentials, then log transit friction on Lines."
         case .planned:
-            return "Nothing planned yet. Add a city or switch the filter to see visited trips."
+            return "Nothing open yet. Add a trip or switch the filter to see finished ones."
         case .visited:
-            return "No visited stamps yet. Open a ticket and mark the city when the trip is done."
+            return "No finished trips yet. Mark a trip done from its Gate screen."
         }
     }
 }

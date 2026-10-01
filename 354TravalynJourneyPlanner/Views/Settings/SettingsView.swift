@@ -13,11 +13,11 @@ struct SettingsView: View {
                 } label: {
                     DeskSurface {
                         HStack {
-                            Image(systemName: "chart.bar.fill")
+                            Image(systemName: "waveform.path.ecg")
                                 .foregroundStyle(Palette.primary)
                                 .frame(width: 22)
-                            Text("Statistics")
-                                .font(.system(.headline, design: .serif))
+                            Text("Pulse")
+                                .font(.system(.headline, design: .rounded))
                                 .foregroundStyle(Palette.primary)
                             Spacer()
                             Image(systemName: "chevron.right")
@@ -34,10 +34,10 @@ struct SettingsView: View {
                         set: { store.setRemindersEnabled($0) }
                     )) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Trip reminders")
-                                .font(.system(.headline, design: .serif))
+                            Text("Gate reminders")
+                                .font(.system(.headline, design: .rounded))
                                 .foregroundStyle(Palette.primary)
-                            Text("Local alerts 3 days and 1 day before each start date.")
+                            Text("Local alerts 3 days and 1 day before each departure.")
                                 .font(.system(.caption, design: .default))
                                 .foregroundStyle(Palette.accent)
                         }
@@ -66,7 +66,7 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "arrow.counterclockwise")
                             Text("Reset All Data")
-                                .font(.system(.headline, design: .serif))
+                                .font(.system(.headline, design: .rounded))
                             Spacer()
                         }
                         .foregroundStyle(Palette.primary)
@@ -78,6 +78,7 @@ struct SettingsView: View {
             }
             .padding(.top, 16)
         }
+        .clearScrollBackground()
         .deskBackdrop()
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
@@ -96,7 +97,7 @@ struct SettingsView: View {
                 SafariSheet(url: safariURL)
             }
         }
-        .confirmationDialog("Erase every city, suitcase, and transit note?", isPresented: $confirmReset, titleVisibility: .visible) {
+        .confirmationDialog("Erase every trip, kit seal, and friction tag?", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("Reset All Data", role: .destructive) {
                 store.resetAllData()
             }
@@ -114,7 +115,7 @@ struct SettingsView: View {
                     .foregroundStyle(Palette.primary)
                     .frame(width: 22)
                 Text(title)
-                    .font(.system(.headline, design: .serif))
+                    .font(.system(.headline, design: .rounded))
                     .foregroundStyle(Palette.primary)
                 Spacer()
                 Image(systemName: "chevron.right")
